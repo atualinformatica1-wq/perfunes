@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Essence Perfumaria - Perfumes Exclusivos e Alta Perfumaria</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['"Cormorant Garamond"', 'serif'],
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.400.0?external=react,react-dom"
+    }
+  }
+  </script>
+  
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-[#faf8f5] text-stone-900 font-sans antialiased selection:bg-amber-200 selection:text-stone-900">
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module" data-presets="react">
+    import React, { useState, useEffect, useMemo } from "react";
+    import { createRoot } from "react-dom/client";
+    import * as Lucide from "lucide-react";
+
+    function App() {
+      const [view, setView] = useState("home");
+      const [settings, setSettings] = useState({
+        store_name: "Essence Perfumaria",
+        store_whatsapp: "5531996831731",
+        hero_title: "A essência da sua personalidade",
+        hero_subtitle: "Descubra fragrâncias exclusivas e coleções de alta perfumaria que capturam momentos inesquecíveis.",
+        store_hero: "https://images.unsplash.com/photo-1594035910387-fea47794261f?w=1600",
+        announcement_bar: "✨ Frete Grátis para todo o Brasil em compras acima de R$ 350,00 | Até 6x sem juros",
+        store_email: "contato@essenceperfumaria.com.br",
+        instagram_url: "https://instagram.com/essenceperfumaria",
+        admin_pin: "1234"
+      });
+
+      const [products, setProducts] = useState([]);
+      const [categories, setCategories] = useState([]);
+      const [selectedCategory, setSelectedCategory] = useState("Todos");
+      const [selectedGender, setSelectedGender] = useState("Todos");
+      const [searchQuery, setSearchQuery] = useState("");
+      const [sortBy, setSortBy] = useState("featured");
+      
+      const [selectedProduct, setSelectedProduct] = useState(null);
+      const [wishlist, setWishlist] = useState([]);
+      const [showWishlist, setShowWishlist] = useState(false);
+      const [showQuiz, setShowQuiz] = useState(false);
+      const [quizStep, setQuizStep] = useState(0);
+      const [quizAnswers, setQuizAnswers] = useState({});
+      const [quizResult, setQuizResult] = useState(null);
+
+      const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+      const [adminPinInput, setAdminPinInput] = useState("");
+      const [pinError, setPinError] = useState("");
+      const [adminTab, setAdminTab] = useState("products");
+      const [stats, setStats] = useState({ totalProducts: 0, totalCategories: 0, totalLeads: 0, featuredCount: 0 });
+      const [leads, setLeads] = useState([]);
+      const [editingProduct, setEditingProduct] = useState(null);
+      const [showProductModal, setShowProductModal] = useState(false);
+      const [notification, setNotification] = useState(null);
+
+      const [newCategoryName, setNewCategoryName] = useState("");
+      const [newCategoryDesc, setNewCategoryDesc] = useState("");
+
+      const showToast = (msg, type = "success") => {
+        setNotification({ msg, type });
+        setTimeout(() => setNotification(null), 3500);
+      };
+
+      const loadData = async () => {
+        try {
+          const [resSet, resProd, resCat, resStats, resLeads] = await Promise.all([
+            fetch("/api/settings").then(r => r.ok ? r.json() : {}),
+            fetch("/api/products").then(r => r.ok ? r.json() : []),
+            fetch("/api/categories").then(r => r.ok ? r.json() : []),
+            fetch("/api/stats").then(r => r.ok ? r.json() : {}),
+            fetch("/api/leads").then(r => r.ok ? r.json() : [])
+          ]);
+
+          if (Object.keys(resSet).length) setSettings(prev => ({ ...prev, ...resSet }));
+          if (Array.isArray(resProd)) setProducts(resProd);
+          if (Array.isArray(resCat)) setCategories(resCat);
+          if (resStats && typeof resStats === "object") setStats(resStats);
+          if (Array.isArray(resLeads)) setLeads(resLeads);
+        } catch (err) {
+          console.error("Erro ao carregar dados:", err);
+        }
+      };
+
+      useEffect(() => {
+        loadData();
+      }, []);
+
+      const handleImageUpload = (e, callback) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        if (file.size > 3 * 1024 * 1024) {
+          showToast("A imagem deve ter no máximo 3MB", "error");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => callback(reader.result);
+        reader.readAsDataURL(file);
+      };
+
+      const toggleWishlist = (product) => {
+        setWishlist(prev => {
+          const exists = prev.some(p => p.id === product.id);
+          if (exists) {
+            showToast(`"${product.name}" removido dos seus favoritos.`);
+            return prev.filter(p => p.id !== product.id);
+          } else {
+            showToast(`"${product.name}" adicionado aos favoritos! ✨`);
+            return [...prev, product];
+          }
+        });
+      };
+
+      const registerLead = async (product, notes = "") => {
+        try {
+          await fetch("/api/leads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              product_id: product?.id || "",
+              product_name: product?.name || "Consulta Geral",
+              notes
+            })
+          });
+        } catch (e) {
+          console.error("Lead error", e);
+        }
+      };
+
+      const openWhatsAppProduct = (product) => {
+        registerLead(product, "Interesse no produto via catálogo");
+        const msg = encodeURIComponent(`Olá, Essence Perfumaria! Gostaria de consultar a disponibilidade e saber mais sobre o perfume *${product.name}* (${product.price}).`);
+        window.open(`https://wa.me/${settings.store_whatsapp}?text=${msg}`, "_blank");
+      };
+
+      const sendWishlistWhatsApp = () => {
+        if (wishlist.length === 0) return;
+        const textList = wishlist.map(p => `- ${p.name} (${p.price})`).join("\n");
+        const msg = encodeURIComponent(`Olá, Essence Perfumaria! Gostaria de consultar os seguintes perfumes da minha Lista de Desejos:\n\n${textList}\n\nComo posso finalizar meu pedido?`);
+        window.open(`https://wa.me/${settings.store_whatsapp}?text=${msg}`, "_blank");
+      };
+
+      const filteredProducts = useMemo(() => {
+        return products.filter(p => {
+          const matchesCat = selectedCategory === "Todos" || p.category === selectedCategory;
+          const matchesGender = selectedGender === "Todos" || p.gender === selectedGender;
+          const searchLower = searchQuery.toLowerCase();
+          const matchesSearch = !searchQuery || 
+            p.name.toLowerCase().includes(searchLower) ||
+            p.description?.toLowerCase().includes(searchLower) ||
+            p.category?.toLowerCase().includes(searchLower) ||
+            p.top_notes?.toLowerCase().includes(searchLower);
+          return matchesCat && matchesGender && matchesSearch;
+        }).sort((a, b) => {
+          if (sortBy === "price-asc") return (a.numeric_price || 0) - (b.numeric_price || 0);
+          if (sortBy === "price-desc") return (b.numeric_price || 0) - (a.numeric_price || 0);
+          if (sortBy === "name") return a.name.localeCompare(b.name);
+          return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
+        });
+      }, [products, selectedCategory, selectedGender, searchQuery, sortBy]);
+
+      const handleAdminLogin = (e) => {
+        e.preventDefault();
+        if (adminPinInput === settings.admin_pin) {
+          setIsAdminAuthenticated(true);
+          setPinError("");
+          showToast("Acesso autorizado ao Painel Admin!");
+        } else {
+          setPinError("PIN incorreto. Tente novamente.");
+        }
+      };
+
+      const handleSaveSettings = async (e) => {
+        e.preventDefault();
+        try {
+          const res = await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(settings)
+          });
+          if (res.ok) {
+            showToast("Configurações da loja salvas com sucesso!");
+            loadData();
+          }
+        } catch (err) {
+          showToast("Erro ao salvar configurações", "error");
+        }
+      };
+
+      const handleSaveProduct = async (e) => {
+        e.preventDefault();
+        if (!editingProduct) return;
+        const isEdit = !!editingProduct.id;
+        const url = isEdit ? `/api/products/${editingProduct.id}` : "/api/products";
+        const method = isEdit ? "PUT" : "POST";
+
+        try {
+          const res = await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(editingProduct)
+          });
+          if (res.ok) {
+            showToast(isEdit ? "Produto atualizado com sucesso!" : "Novo produto cadastrado!");
+            setShowProductModal(false);
+            setEditingProduct(null);
+            loadData();
+          }
+        } catch (err) {
+          showToast("Erro ao salvar produto", "error");
+        }
+      };
+
+      const handleDeleteProduct = async (id, name) => {
+        if (!confirm(`Tem certeza que deseja remover o perfume "${name}"?`)) return;
+        try {
+          const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+          if (res.ok) {
+            showToast(`Perfume "${name}" desativado!`);
+            loadData();
+          }
+        } catch (err) {
+          showToast("Erro ao remover produto", "error");
+        }
+      };
+
+      const handleAddCategory = async (e) => {
+        e.preventDefault();
+        if (!newCategoryName.trim()) return;
+        try {
+          const res = await fetch("/api/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: newCategoryName, description: newCategoryDesc })
+          });
+          if (res.ok) {
+            showToast("Nova categoria criada com sucesso!");
+            setNewCategoryName("");
+            setNewCategoryDesc("");
+            loadData();
+          } else {
+            showToast("Categoria já existente ou inválida", "error");
+          }
+        } catch {
+          showToast("Erro ao criar categoria", "error");
+        }
+      };
+
+      const handleDeleteCategory = async (id, name) => {
+        if (!confirm(`Excluir categoria "${name}"?`)) return;
+        try {
+          const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+          if (res.ok) {
+            showToast("Categoria removida com sucesso!");
+            loadData();
+          }
+        } catch {
+          showToast("Erro ao remover categoria", "error");
+        }
+      };
+
+      const handleResetDemo = async () => {
+        if (!confirm("Isso redefinirá todos os produtos e configurações para o padrão inicial. Continuar?")) return;
+        try {
+          const res = await fetch("/api/reset-demo", { method: "POST" });
+          if (res.ok) {
+            showToast("Banco de dados restaurado ao padrão!");
+            loadData();
+          }
+        } catch {
+          showToast("Erro ao restaurar banco", "error");
+        }
+      };
+
+      const quizQuestions = [
+        {
+          question: "Para qual ocasião você procura uma nova fragrância?",
+          options: [
+            { label: "Uso diário e trabalho", note: "Cítricos" },
+            { label: "Encontros e noites especiais", note: "Orientais" },
+            { label: "Eventos sociais sofisticados", note: "Amadeirados" },
+            { label: "Momentos de relaxamento e natureza", note: "Florais" }
+          ]
+        },
+        {
+          question: "Qual sensação você prefere transmitir?",
+          options: [
+            { label: "Refrescância, energia e leveza", note: "Cítricos" },
+            { label: "Sensualidade, mistério e calor", note: "Orientais" },
+            { label: "Elegância, poder e presença", note: "Amadeirados" },
+            { label: "Delicadeza, encanto e romantismo", note: "Florais" }
+          ]
+        }
+      ];
+
+      const handleQuizOption = (note) => {
+        const updated = { ...quizAnswers, [quizStep]: note };
+        setQuizAnswers(updated);
+        if (quizStep < quizQuestions.length - 1) {
+          setQuizStep(quizStep + 1);
+        } else {
+          const chosenCategory = updated[1] || updated[0] || "Amadeirados";
+          const match = products.find(p => p.category === chosenCategory) || products[0];
+          setQuizResult(match);
+        }
+      };
+
+      const resetQuiz = () => {
+        setQuizStep(0);
+        setQuizAnswers({});
+        setQuizResult(null);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col font-sans bg-[#faf8f5]">
+          {notification && (
+            <div className={`fixed top-4 right-4 z-[100] px-6 py-4 rounded-xl shadow-2xl border text-sm font-medium flex items-center gap-3 transition-all transform animate-bounce ${
+              notification.type === "error" ? "bg-red-900 text-red-100 border-red-700" : "bg-stone-900 text-amber-200 border-amber-600/40"
+            }`}>
+              <Lucide.Sparkles className="w-5 h-5 text-amber-400" />
+              <span>{notification.msg}</span>
+            </div>
+          )}
+
+          {settings.announcement_bar && (
+            <div className="bg-stone-900 text-amber-200/90 text-xs py-2 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2 border-b border-stone-800">
+              <span>{settings.announcement_bar}</span>
+            </div>
+          )}
+
+          <header className="h-20 bg-white/95 backdrop-blur-md border-b border-stone-200 flex items-center justify-between px-6 md:px-12 sticky top-0 z-40 transition-all">
+            <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView("home")}>
+              <div className="w-10 h-10 rounded-full bg-stone-900 text-amber-400 flex items-center justify-center font-serif font-bold text-xl shadow-md group-hover:scale-105 transition-transform">
+                E
+              </div>
+              <h1 className="text-xl md:text-2xl font-bold font-serif text-stone-900 tracking-tight">
+                {settings.store_name}
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-3 md:gap-6">
+              <button 
+                onClick={() => setView("home")} 
+                className={`text-sm font-semibold transition-colors px-3 py-2 rounded-lg ${view === "home" ? "text-stone-900 bg-stone-100" : "text-stone-600 hover:text-stone-900"}`}
+              >
+                Início
+              </button>
+              
+              <button 
+                onClick={() => setShowQuiz(true)}
+                className="hidden md:flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-2 rounded-lg border border-amber-200/60 transition-colors"
+              >
+                <Lucide.Sparkles className="w-4 h-4 text-amber-600" />
+                Provador Virtual
+              </button>
+
+              <button 
+                onClick={() => setShowWishlist(true)}
+                className="relative p-2 text-stone-700 hover:text-stone-900 transition-colors rounded-lg hover:bg-stone-100"
+                title="Lista de Desejos"
+              >
+                <Lucide.Heart className="w-6 h-6" />
+                {wishlist.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-amber-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
+                    {wishlist.length}
+                  </span>
+                )}
+              </button>
+
+              <button 
+                onClick={() => setView("admin")} 
+                className="bg-stone-900 hover:bg-black text-amber-100 px-4 py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center gap-2 shadow-sm hover:shadow transition-all"
+              >
+                <Lucide.Lock className="w-3.5 h-3.5 text-amber-400" /> 
+                <span className="hidden sm:inline">Painel Admin</span>
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-grow">
+            {view === "home" ? (
+              <>
+                <section className="relative min-h-[70vh] flex items-center justify-center text-center overflow-hidden bg-stone-900">
+                  <img 
+                    src={settings.store_hero} 
+                    alt="Essence Perfumaria Hero"
+                    className="absolute inset-0 w-full h-full object-cover opacity-40 scale-105 transition-transform duration-1000" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-900/40 to-transparent"></div>
+                  
+                  <div className="relative z-10 max-w-4xl mx-4 px-6 py-16 rounded-3xl bg-stone-900/70 backdrop-blur-xl border border-white/10 shadow-2xl text-white my-8">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold tracking-widest uppercase mb-6">
+                      <Lucide.Sparkles className="w-3.5 h-3.5" /> Fragrâncias Exclusivas
+                    </div>
+                    <h2 className="text-4xl md:text-6xl font-serif font-bold tracking-tight mb-6 text-amber-50 leading-tight">
+                      {settings.hero_title}
+                    </h2>
+                    <p className="text-stone-300 text-base md:text-xl font-light mb-10 max-w-2xl mx-auto leading-relaxed">
+                      {settings.hero_subtitle}
+                    </p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                      <a 
+                        href="#catalogo" 
+                        className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-stone-950 px-8 py-4 rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg shadow-amber-500/20"
+                      >
+                        Ver Catálogo Completo
+                      </a>
+                      <button 
+                        onClick={() => setShowQuiz(true)}
+                        className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-semibold text-sm tracking-wide border border-white/20 backdrop-blur-md transition-all flex items-center justify-center gap-2"
+                      >
+                        <Lucide.Sparkles className="w-4 h-4 text-amber-300" />
+                        Descobrir Meu Perfume
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section id="catalogo" className="py-16 px-6 max-w-7xl mx-auto">
+                  <div className="text-center mb-12">
+                    <span className="text-amber-700 text-xs font-bold uppercase tracking-widest">Coleção Exclusiva</span>
+                    <h3 className="text-3xl md:text-4xl font-serif font-bold text-stone-900 mt-2">Nossas Fragrâncias</h3>
+                    <p className="text-stone-500 text-sm mt-2 max-w-xl mx-auto">Encontre a nota olfativa perfeita para assinar a sua presença onde quer que vá.</p>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-sm mb-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="relative w-full md:w-80">
+                      <Lucide.Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                      <input 
+                        type="text"
+                        placeholder="Buscar por nome ou nota olfativa..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-stone-200 text-sm focus:outline-none focus:border-amber-600 bg-stone-50/50"
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0">
+                        <span className="text-xs font-bold text-stone-400 uppercase mr-1">Gênero:</span>
+                        {["Todos", "Feminino", "Masculino", "Unissex"].map(g => (
+                          <button
+                            key={g}
+                            onClick={() => setSelectedGender(g)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                              selectedGender === g ? "bg-stone-900 text-amber-300" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                            }`}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+
+                      <select 
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="px-3 py-2 rounded-xl border border-stone-200 text-xs font-semibold text-stone-700 bg-stone-50/50 focus:outline-none focus:border-amber-600"
+                      >
+                        <option value="featured">Destaques Primeiro</option>
+                        <option value="price-asc">Menor Preço</option>
+                        <option value="price-desc">Maior Preço</option>
+                        <option value="name">Ordem Alfabética</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-8">
+                    <button
+                      onClick={() => setSelectedCategory("Todos")}
+                      className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap border ${
+                        selectedCategory === "Todos" 
+                          ? "bg-stone-900 text-amber-400 border-stone-900 shadow-sm" 
+                          : "bg-white text-stone-600 border-stone-200 hover:bg-stone-100"
+                      }`}
+                    >
+                      Todas as Famílias ({products.length})
+                    </button>
+                    {categories.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.name)}
+                        className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap border ${
+                          selectedCategory === cat.name 
+                            ? "bg-stone-900 text-amber-400 border-stone-900 shadow-sm" 
+                            : "bg-white text-stone-600 border-stone-200 hover:bg-stone-100"
+                        }`}
+                      >
+                        {cat.name} ({products.filter(p => p.category === cat.name).length})
+                      </button>
+                    ))}
+                  </div>
+
+                  {filteredProducts.length === 0 ? (
+                    <div className="py-20 text-center bg-white rounded-3xl border border-stone-200 p-8 max-w-md mx-auto">
+                      <Lucide.Sparkles className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+                      <h4 className="text-xl font-bold font-serif text-stone-800">Nenhum perfume encontrado</h4>
+                      <p className="text-stone-500 text-sm mt-2 mb-6">Tente alterar os filtros de busca ou escolher outra família olfativa.</p>
+                      <button 
+                        onClick={() => { setSelectedCategory("Todos"); setSelectedGender("Todos"); setSearchQuery(""); }}
+                        className="bg-stone-900 text-white px-6 py-2.5 rounded-xl text-xs font-bold uppercase"
+                      >
+                        Limpar Filtros
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {filteredProducts.map(p => {
+                        const isWishlisted = wishlist.some(item => item.id === p.id);
+                        return (
+                          <div 
+                            key={p.id} 
+                            className="group bg-white rounded-2xl overflow-hidden border border-stone-200/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col relative"
+                          >
+                            <div className="relative aspect-square overflow-hidden bg-stone-100 p-4">
+                              <img 
+                                src={p.img} 
+                                alt={p.name} 
+                                className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-700" 
+                              />
+                              
+                              <div className="absolute top-6 left-6 flex flex-col gap-1.5 items-start">
+                                {p.is_featured === 1 && (
+                                  <span className="bg-amber-500 text-stone-950 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md shadow-sm">
+                                    Destaque
+                                  </span>
+                                )}
+                                <span className="bg-stone-900/80 backdrop-blur-md text-stone-200 text-[10px] font-semibold px-2.5 py-1 rounded-md">
+                                  {p.category}
+                                </span>
+                              </div>
+
+                              <button
+                                onClick={() => toggleWishlist(p)}
+                                className={`absolute top-6 right-6 p-2.5 rounded-full backdrop-blur-md transition-all ${
+                                  isWishlisted ? "bg-amber-500 text-stone-950 shadow-md" : "bg-white/80 text-stone-700 hover:bg-white"
+                                }`}
+                              >
+                                <Lucide.Heart className={`w-4 h-4 ${isWishlisted ? "fill-stone-950" : ""}`} />
+                              </button>
+                            </div>
+
+                            <div className="p-6 flex-grow flex flex-col justify-between text-center">
+                              <div>
+                                <div className="text-xs text-stone-400 mb-1">
+                                  <span>{p.volume || "100 ml"} • {p.concentration || "Eau de Parfum"} • {p.gender}</span>
+                                </div>
+                                <h4 className="text-2xl font-bold font-serif text-stone-900 group-hover:text-amber-700 transition-colors">
+                                  {p.name}
+                                </h4>
+                                <p className="text-stone-500 text-xs line-clamp-2 mt-2 leading-relaxed">
+                                  {p.description}
+                                </p>
+                              </div>
+
+                              <div className="mt-6 pt-4 border-t border-stone-100">
+                                <p className="text-2xl font-bold text-stone-900 my-3">{p.price}</p>
+                                
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    onClick={() => setSelectedProduct(p)}
+                                    className="bg-stone-100 hover:bg-stone-200 text-stone-900 py-3 rounded-xl font-bold text-xs uppercase"
+                                  >
+                                    Detalhes
+                                  </button>
+                                  <button
+                                    onClick={() => openWhatsAppProduct(p)}
+                                    className="bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs shadow-sm"
+                                  >
+                                    <Lucide.MessageCircle className="w-4 h-4" /> WhatsApp
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </>
+            ) : (
+              <div className="max-w-6xl mx-auto py-12 px-6">
+                {!isAdminAuthenticated ? (
+                  <div className="max-w-md mx-auto bg-white p-8 md:p-10 rounded-3xl border border-stone-200 shadow-xl text-center">
+                    <div className="w-16 h-16 bg-stone-900 text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md">
+                      <Lucide.Lock className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-2xl font-serif font-bold text-stone-900 mb-2">Painel Administrativo</h2>
+                    <p className="text-stone-500 text-xs mb-8">Digite o PIN de segurança para gerenciar produtos, loja e configurações.</p>
+
+                    <form onSubmit={handleAdminLogin} className="space-y-4">
+                      <div>
+                        <input 
+                          type="password"
+                          placeholder="PIN do Administrador (Padrão: 1234)"
+                          value={adminPinInput}
+                          onChange={(e) => setAdminPinInput(e.target.value)}
+                          className="w-full text-center tracking-widest text-lg font-bold px-4 py-3 rounded-xl border border-stone-300 focus:outline-none focus:border-stone-900 bg-stone-50"
+                        />
+                        {pinError && <p className="text-red-600 text-xs mt-2 font-medium">{pinError}</p>}
+                      </div>
+                      <button 
+                        type="submit"
+                        className="w-full bg-stone-900 hover:bg-black text-amber-300 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-md"
+                      >
+                        Acessar Painel
+                      </button>
+                    </form>
+                    
+                    <button 
+                      onClick={() => setView("home")} 
+                      className="mt-6 text-xs text-stone-500 hover:text-stone-900 underline font-medium"
+                    >
+                      Voltar para a Loja
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-stone-200">
+                      <div>
+                        <span className="text-xs font-bold text-amber-700 uppercase tracking-widest">Acesso Restrito</span>
+                        <h2 className="text-3xl font-serif font-bold text-stone-900">Painel de Gestão Essence</h2>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleResetDemo}
+                          className="px-3.5 py-2 rounded-xl border border-stone-300 text-stone-700 text-xs font-semibold hover:bg-stone-100 flex items-center gap-1.5"
+                        >
+                          <Lucide.RefreshCw className="w-3.5 h-3.5" /> Restaurar Padrão
+                        </button>
+                        <button
+                          onClick={() => setIsAdminAuthenticated(false)}
+                          className="px-3.5 py-2 rounded-xl bg-red-50 text-red-700 border border-red-200 text-xs font-semibold hover:bg-red-100"
+                        >
+                          Sair
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                      <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+                        <span className="text-xs font-bold text-stone-400 uppercase">Produtos</span>
+                        <p className="text-2xl font-bold text-stone-900 mt-1">{stats.totalProducts}</p>
+                      </div>
+                      <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+                        <span className="text-xs font-bold text-stone-400 uppercase">Categorias</span>
+                        <p className="text-2xl font-bold text-stone-900 mt-1">{stats.totalCategories}</p>
+                      </div>
+                      <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+                        <span className="text-xs font-bold text-stone-400 uppercase">Consultas</span>
+                        <p className="text-2xl font-bold text-stone-900 mt-1">{stats.totalLeads}</p>
+                      </div>
+                      <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+                        <span className="text-xs font-bold text-stone-400 uppercase">Destaques</span>
+                        <p className="text-2xl font-bold text-stone-900 mt-1">{stats.featuredCount}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex border-b border-stone-200 mb-8 overflow-x-auto">
+                      {[
+                        { id: "products", label: "Catálogo de Produtos" },
+                        { id: "categories", label: "Famílias Olfativas" },
+                        { id: "settings", label: "Dados da Loja" },
+                        { id: "leads", label: "Histórico de Consultas" }
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setAdminTab(tab.id)}
+                          className={`px-6 py-3 border-b-2 text-xs font-bold uppercase tracking-wider whitespace-nowrap ${
+                            adminTab === tab.id ? "border-amber-600 text-stone-900" : "border-transparent text-stone-400 hover:text-stone-700"
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {adminTab === "products" && (
+                      <div>
+                        <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-lg font-bold text-stone-900">Gerenciar Catálogo</h3>
+                          <button
+                            onClick={() => {
+                              setEditingProduct({
+                                name: "",
+                                price: "R$ 380,00",
+                                numeric_price: 380,
+                                img: "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=800",
+                                category: categories[0]?.name || "Amadeirados",
+                                description: "",
+                                volume: "100 ml",
+                                concentration: "Eau de Parfum",
+                                gender: "Unissex",
+                                top_notes: "",
+                                heart_notes: "",
+                                base_notes: "",
+                                stock: 10,
+                                is_featured: 0
+                              });
+                              setShowProductModal(true);
+                            }}
+                            className="bg-stone-900 hover:bg-black text-amber-300 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2"
+                          >
+                            <Lucide.Plus className="w-4 h-4" /> Novo Perfume
+                          </button>
+                        </div>
+
+                        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-bold uppercase">
+                              <tr>
+                                <th className="p-4">Produto</th>
+                                <th className="p-4">Categoria</th>
+                                <th className="p-4">Preço</th>
+                                <th className="p-4">Estoque</th>
+                                <th className="p-4 text-right">Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100">
+                              {products.map(p => (
+                                <tr key={p.id} className="hover:bg-stone-50/50">
+                                  <td className="p-4 flex items-center gap-3">
+                                    <img src={p.img} className="w-10 h-10 object-cover rounded-lg border border-stone-200" />
+                                    <div>
+                                      <p className="font-bold text-stone-900">{p.name}</p>
+                                      <p className="text-stone-400 text-[10px]">{p.volume} • {p.gender}</p>
+                                    </div>
+                                  </td>
+                                  <td className="p-4 font-medium text-stone-700">{p.category}</td>
+                                  <td className="p-4 font-bold text-stone-900">{p.price}</td>
+                                  <td className="p-4 text-stone-600">{p.stock} un.</td>
+                                  <td className="p-4 text-right space-x-2">
+                                    <button
+                                      onClick={() => {
+                                        setEditingProduct(p);
+                                        setShowProductModal(true);
+                                      }}
+                                      className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg"
+                                    >
+                                      <Lucide.Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteProduct(p.id, p.name)}
+                                      className="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg"
+                                    >
+                                      <Lucide.Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {adminTab === "categories" && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm h-fit">
+                          <h4 className="text-base font-bold text-stone-900 mb-4">Nova Categoria</h4>
+                          <form onSubmit={handleAddCategory} className="space-y-4">
+                            <div>
+                              <label className="text-xs font-bold text-stone-600 uppercase block mb-1">Nome da Categoria</label>
+                              <input 
+                                type="text"
+                                placeholder="Ex: Gourmand"
+                                value={newCategoryName}
+                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-stone-600 uppercase block mb-1">Descrição</label>
+                              <textarea 
+                                placeholder="Notas doces de baunilha..."
+                                value={newCategoryDesc}
+                                onChange={(e) => setNewCategoryDesc(e.target.value)}
+                                className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs focus:outline-none h-20"
+                              />
+                            </div>
+                            <button 
+                              type="submit"
+                              className="w-full bg-stone-900 hover:bg-black text-amber-300 py-2.5 rounded-xl font-bold text-xs uppercase"
+                            >
+                              Criar Categoria
+                            </button>
+                          </form>
+                        </div>
+
+                        <div className="md:col-span-2 bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
+                          <h4 className="text-base font-bold text-stone-900 mb-4">Categorias Ativas</h4>
+                          <div className="divide-y divide-stone-100">
+                            {categories.map(cat => (
+                              <div key={cat.id} className="py-3 flex items-center justify-between">
+                                <div>
+                                  <h5 className="font-bold text-stone-900 text-sm">{cat.name}</h5>
+                                  <p className="text-stone-500 text-xs">{cat.description || "Sem descrição"}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                                  className="text-red-600 hover:text-red-800 p-2 rounded-lg text-xs font-semibold"
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {adminTab === "settings" && (
+                      <div className="bg-white p-8 rounded-2xl border border-stone-200 shadow-sm max-w-3xl">
+                        <h3 className="text-lg font-bold text-stone-900 mb-6">Configurações Gerais</h3>
+                        <form onSubmit={handleSaveSettings} className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="text-xs font-bold text-stone-600 uppercase block mb-1">Nome da Loja</label>
+                              <input 
+                                type="text"
+                                value={settings.store_name}
+                                onChange={(e) => setSettings({ ...settings, store_name: e.target.value })}
+                                className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-stone-600 uppercase block mb-1">WhatsApp de Vendas</label>
+                              <input 
+                                type="text"
+                                value={settings.store_whatsapp}
+                                onChange={(e) => setSettings({ ...settings, store_whatsapp: e.target.value })}
+                                className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold text-stone-600 uppercase block mb-1">Título Hero</label>
+                            <input 
+                              type="text"
+                              value={settings.hero_title}
+                              onChange={(e) => setSettings({ ...settings, hero_title: e.target.value })}
+                              className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold text-stone-600 uppercase block mb-1">Subtítulo Hero</label>
+                            <textarea 
+                              value={settings.hero_subtitle}
+                              onChange={(e) => setSettings({ ...settings, hero_subtitle: e.target.value })}
+                              className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs h-20"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold text-stone-600 uppercase block mb-1">Imagem do Hero (URL ou Foto do PC)</label>
+                            <div className="flex gap-2">
+                              <input 
+                                type="text"
+                                value={settings.store_hero}
+                                onChange={(e) => setSettings({ ...settings, store_hero: e.target.value })}
+                                className="flex-grow px-3 py-2 rounded-xl border border-stone-300 text-xs"
+                              />
+                              <label className="bg-stone-200 hover:bg-stone-300 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer whitespace-nowrap">
+                                Upload Foto
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={(e) => handleImageUpload(e, (b64) => setSettings({ ...settings, store_hero: b64 }))} 
+                                />
+                              </label>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold text-stone-600 uppercase block mb-1">PIN do Admin</label>
+                            <input 
+                              type="text"
+                              value={settings.admin_pin}
+                              onChange={(e) => setSettings({ ...settings, admin_pin: e.target.value })}
+                              className="w-48 px-3 py-2 rounded-xl border border-stone-300 text-xs font-bold"
+                            />
+                          </div>
+
+                          <button 
+                            type="submit"
+                            className="bg-stone-900 text-amber-300 px-6 py-3 rounded-xl font-bold text-xs uppercase shadow-md"
+                          >
+                            Salvar Alterações
+                          </button>
+                        </form>
+                      </div>
+                    )}
+
+                    {adminTab === "leads" && (
+                      <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm">
+                        <h3 className="text-lg font-bold text-stone-900 mb-4">Consultas do WhatsApp</h3>
+                        {leads.length === 0 ? (
+                          <p className="text-stone-400 text-xs">Nenhuma consulta registrada ainda.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {leads.map(lead => (
+                              <div key={lead.id} className="p-4 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-between">
+                                <div>
+                                  <p className="font-bold text-xs text-stone-900">{lead.product_name}</p>
+                                  <p className="text-[11px] text-stone-500">{lead.notes || "Consulta direta via catálogo"}</p>
+                                </div>
+                                <span className="text-[10px] font-medium text-stone-400">
+                                  {new Date(lead.created_at).toLocaleString('pt-BR')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </main>
+
+          <footer className="bg-stone-900 text-stone-400 py-12 px-6 border-t border-stone-800">
+            <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center font-serif font-bold text-base">E</div>
+                  <h4 className="text-white font-serif font-bold text-lg">{settings.store_name}</h4>
+                </div>
+                <p className="text-xs text-stone-400 leading-relaxed">
+                  Perfumaria exclusiva dedicada a selecionar e oferecer fragrâncias de assinatura marcante para quem busca sofisticação.
+                </p>
+              </div>
+
+              <div>
+                <h5 className="text-white text-xs font-bold uppercase tracking-wider mb-4">Atendimento</h5>
+                <ul className="space-y-2 text-xs">
+                  <li>WhatsApp: +{settings.store_whatsapp}</li>
+                  <li>E-mail: {settings.store_email}</li>
+                </ul>
+              </div>
+
+              <div>
+                <h5 className="text-white text-xs font-bold uppercase tracking-wider mb-4">Navegação</h5>
+                <div className="flex flex-col gap-2 text-xs">
+                  <button onClick={() => setView("home")} className="text-left hover:text-white">Início / Catálogo</button>
+                  <button onClick={() => setShowQuiz(true)} className="text-left hover:text-white">Provador Virtual</button>
+                  <button onClick={() => setView("admin")} className="text-left hover:text-white">Painel Admin</button>
+                </div>
+              </div>
+            </div>
+          </footer>
+
+          {/* Modal Detalhes do Perfume */}
+          {selectedProduct && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 relative shadow-2xl">
+                <button 
+                  onClick={() => setSelectedProduct(null)}
+                  className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-900 rounded-full"
+                >
+                  ✕
+                </button>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <img src={selectedProduct.img} className="w-full aspect-square object-cover rounded-2xl border border-stone-200" />
+                  
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <span className="text-xs font-bold uppercase text-amber-700">{selectedProduct.category}</span>
+                      <h3 className="text-2xl font-serif font-bold text-stone-900 mt-1">{selectedProduct.name}</h3>
+                      <p className="text-xl font-bold text-stone-900 my-3">{selectedProduct.price}</p>
+                      <p className="text-stone-600 text-xs leading-relaxed mb-6">{selectedProduct.description}</p>
+
+                      <div className="space-y-2 border-t border-stone-100 pt-4 text-xs">
+                        <p><strong className="text-stone-900">Pirâmide Olfativa:</strong></p>
+                        {selectedProduct.top_notes && <p><span className="text-stone-400">Topo:</span> {selectedProduct.top_notes}</p>}
+                        {selectedProduct.heart_notes && <p><span className="text-stone-400">Coração:</span> {selectedProduct.heart_notes}</p>}
+                        {selectedProduct.base_notes && <p><span className="text-stone-400">Fundo:</span> {selectedProduct.base_notes}</p>}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        openWhatsAppProduct(selectedProduct);
+                        setSelectedProduct(null);
+                      }}
+                      className="mt-6 w-full bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md"
+                    >
+                      <Lucide.MessageCircle className="w-4 h-4" /> Consultar via WhatsApp
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Provador Virtual (Quiz) */}
+          {showQuiz && (
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="bg-stone-900 text-white rounded-3xl max-w-md w-full p-8 relative border border-stone-800 shadow-2xl text-center">
+                <button 
+                  onClick={() => { setShowQuiz(false); resetQuiz(); }}
+                  className="absolute top-4 right-4 text-stone-400 hover:text-white"
+                >
+                  ✕
+                </button>
+
+                {!quizResult ? (
+                  <div>
+                    <span className="text-amber-400 text-[10px] font-bold uppercase tracking-widest block mb-2">
+                      Passo {quizStep + 1} de {quizQuestions.length}
+                    </span>
+                    <h3 className="text-xl font-serif font-bold text-amber-50 mb-6">
+                      {quizQuestions[quizStep].question}
+                    </h3>
+
+                    <div className="space-y-3">
+                      {quizQuestions[quizStep].options.map((opt, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleQuizOption(opt.note)}
+                          className="w-full text-left p-4 rounded-xl bg-stone-800 hover:bg-stone-700 border border-stone-700/60 text-xs font-semibold text-stone-200"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <Lucide.Sparkles className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                    <span className="text-amber-400 text-xs font-bold uppercase tracking-widest">Recomendação Personalizada</span>
+                    <h3 className="text-2xl font-serif font-bold text-white mt-1 mb-4">{quizResult.name}</h3>
+
+                    <img src={quizResult.img} className="w-40 h-40 object-cover rounded-2xl mx-auto mb-4 border border-stone-700 shadow-lg" />
+                    <p className="text-xs text-stone-300 mb-6 leading-relaxed">{quizResult.description}</p>
+
+                    <button
+                      onClick={() => {
+                        openWhatsAppProduct(quizResult);
+                        setShowQuiz(false);
+                        resetQuiz();
+                      }}
+                      className="w-full bg-amber-500 hover:bg-amber-400 text-stone-950 py-3 rounded-xl font-bold text-xs uppercase tracking-wider mb-3"
+                    >
+                      Consultar no WhatsApp
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Modal Form de Produto (Admin) */}
+          {showProductModal && editingProduct && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 relative shadow-2xl">
+                <button 
+                  onClick={() => setShowProductModal(false)}
+                  className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-900 rounded-full"
+                >
+                  ✕
+                </button>
+
+                <h3 className="text-xl font-serif font-bold text-stone-900 mb-6">
+                  {editingProduct.id ? "Editar Perfume" : "Novo Perfume"}
+                </h3>
+
+                <form onSubmit={handleSaveProduct} className="space-y-4 text-xs">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Nome</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={editingProduct.name}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-stone-300" 
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Preço (Ex: R$ 380,00)</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={editingProduct.price}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, price: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-stone-300" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Família Olfativa</label>
+                      <select 
+                        value={editingProduct.category}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-stone-300 bg-white"
+                      >
+                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Concentração</label>
+                      <input 
+                        type="text" 
+                        value={editingProduct.concentration}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, concentration: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-stone-300" 
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Gênero</label>
+                      <select 
+                        value={editingProduct.gender}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, gender: e.target.value })}
+                        className="w-full p-2.5 rounded-xl border border-stone-300 bg-white"
+                      >
+                        <option value="Unissex">Unissex</option>
+                        <option value="Feminino">Feminino</option>
+                        <option value="Masculino">Masculino</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-stone-600 block mb-1">Foto do Perfume (URL ou do PC)</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={editingProduct.img}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, img: e.target.value })}
+                        className="flex-grow p-2.5 rounded-xl border border-stone-300" 
+                      />
+                      <label className="bg-stone-200 hover:bg-stone-300 px-3 py-2.5 rounded-xl font-bold cursor-pointer whitespace-nowrap">
+                        Upload Foto
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => handleImageUpload(e, (b64) => setEditingProduct({ ...editingProduct, img: b64 }))} 
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-stone-600 block mb-1">Descrição</label>
+                    <textarea 
+                      value={editingProduct.description}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                      className="w-full p-2.5 rounded-xl border border-stone-300 h-20" 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Topo</label>
+                      <input 
+                        type="text" 
+                        value={editingProduct.top_notes || ""}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, top_notes: e.target.value })}
+                        className="w-full p-2 rounded-xl border border-stone-300" 
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Coração</label>
+                      <input 
+                        type="text" 
+                        value={editingProduct.heart_notes || ""}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, heart_notes: e.target.value })}
+                        className="w-full p-2 rounded-xl border border-stone-300" 
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-stone-600 block mb-1">Fundo</label>
+                      <input 
+                        type="text" 
+                        value={editingProduct.base_notes || ""}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, base_notes: e.target.value })}
+                        className="w-full p-2 rounded-xl border border-stone-300" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end gap-3">
+                    <button 
+                      type="button" 
+                      onClick={() => setShowProductModal(false)}
+                      className="px-5 py-2.5 rounded-xl border border-stone-300 font-bold"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      className="bg-stone-900 text-amber-300 px-6 py-2.5 rounded-xl font-bold uppercase"
+                    >
+                      Salvar Perfume
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
