@@ -1,6 +1,180 @@
 import { DurableObject } from "cloudflare:workers";
 import { Hono } from "hono";
 
+interface Product {
+  id: string;
+  name: string;
+  price: string;
+  numeric_price: number;
+  img: string;
+  category: string;
+  description: string;
+  volume: string;
+  concentration: string;
+  gender: string;
+  top_notes: string;
+  heart_notes: string;
+  base_notes: string;
+  stock: number;
+  is_featured: number;
+  is_active: number;
+  created_at: number;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface Lead {
+  id: string;
+  product_id: string;
+  product_name: string;
+  customer_name: string;
+  customer_phone: string;
+  notes: string;
+  created_at: number;
+}
+
+const defaultSettings: Record<string, string> = {
+  store_name: "Essence Perfumaria",
+  store_whatsapp: "5531996831731",
+  hero_title: "A essência da sua personalidade",
+  hero_subtitle: "Descubra fragrâncias exclusivas e coleções de alta perfumaria que capturam momentos inesquecíveis.",
+  store_hero: "https://images.unsplash.com/photo-1594035910387-fea47794261f?w=1600",
+  announcement_bar: "✨ Frete Grátis para todo o Brasil em compras acima de R$ 350,00 | Até 6x sem juros",
+  store_email: "contato@essenceperfumaria.com.br",
+  instagram_url: "https://instagram.com/essenceperfumaria",
+  admin_pin: "1234"
+};
+
+const defaultCategories: Category[] = [
+  { id: "cat-1", name: "Amadeirados", description: "Notas quentes de cedro, sândalo e vetiver." },
+  { id: "cat-2", name: "Florais", description: "Buquês refinados de rosas, jasmins e orquídeas." },
+  { id: "cat-3", name: "Orientais", description: "Especiarias marcantes, âmbar radiante e mirra." },
+  { id: "cat-4", name: "Cítricos", description: "Refrescância de tangerinas, bergamotas e néroli." },
+  { id: "cat-5", name: "Aquáticos", description: "Brisas marinhas leves e notas refrescantes." }
+];
+
+const now = Date.now();
+const defaultProducts: Product[] = [
+  {
+    id: "1",
+    name: "Blue Velvet",
+    price: "R$ 380,00",
+    numeric_price: 380,
+    img: "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=800",
+    category: "Amadeirados",
+    description: "Uma fragrância sedutora e misteriosa com notas profundas de cedro azul, noz-moscada aromática e bergamota italiana refinada.",
+    volume: "100 ml",
+    concentration: "Eau de Parfum",
+    gender: "Unissex",
+    top_notes: "Bergamota Italiana, Pimenta Preta, Cardamomo",
+    heart_notes: "Noz-moscada, Lavanda Francesa, Flor de Íris",
+    base_notes: "Cedro Azul, Âmbar Cinzento, Vetiver de Madagascar",
+    stock: 12,
+    is_featured: 1,
+    is_active: 1,
+    created_at: now - 50000
+  },
+  {
+    id: "2",
+    name: "Rose d'Or",
+    price: "R$ 420,00",
+    numeric_price: 420,
+    img: "https://images.unsplash.com/photo-1585120040315-2241b774ad0f?w=800",
+    category: "Florais",
+    description: "Elegância pura em forma líquida. Rosa Damascena colhida à alvorada harmonizada com toques sutis de baunilha de Madagascar.",
+    volume: "100 ml",
+    concentration: "Parfum Extrait",
+    gender: "Feminino",
+    top_notes: "Lichia Suculenta, Peônia, Pimenta Rosa",
+    heart_notes: "Rosa Damascena Absoluta, Jasmim Sambac",
+    base_notes: "Baunilha de Madagascar, Fava Tonka, Almíscar Branco",
+    stock: 8,
+    is_featured: 1,
+    is_active: 1,
+    created_at: now - 40000
+  },
+  {
+    id: "3",
+    name: "Amber Royale",
+    price: "R$ 490,00",
+    numeric_price: 490,
+    img: "https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=800",
+    category: "Orientais",
+    description: "Riqueza e calor envolventes. Âmbar dourado enriquecido com resina de mirra, especiarias orientais e sândalo cremoso.",
+    volume: "100 ml",
+    concentration: "Eau de Parfum",
+    gender: "Unissex",
+    top_notes: "Cardamomo Verde, Açafrão Persa, Canela",
+    heart_notes: "Mirra, Incenso de Omã, Bálsamo do Peru",
+    base_notes: "Âmbar Dourado, Sândalo Cauteloso, Couro Macio",
+    stock: 5,
+    is_featured: 1,
+    is_active: 1,
+    created_at: now - 30000
+  },
+  {
+    id: "4",
+    name: "Citrus Supreme",
+    price: "R$ 290,00",
+    numeric_price: 290,
+    img: "https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=800",
+    category: "Cítricos",
+    description: "Explosão vibrante e revigorante de tangerina siciliana, néroli fresco e notas herbais de vetiver radiante.",
+    volume: "100 ml",
+    concentration: "Eau de Toilette",
+    gender: "Unissex",
+    top_notes: "Tangerina Siciliana, Limão Taiti, Toranja",
+    heart_notes: "Néroli, Flor de Laranjeira, Petitgrain",
+    base_notes: "Vetiver do Haiti, Almíscar Cristalino",
+    stock: 15,
+    is_featured: 0,
+    is_active: 1,
+    created_at: now - 20000
+  },
+  {
+    id: "5",
+    name: "Nuit Noire",
+    price: "R$ 510,00",
+    numeric_price: 510,
+    img: "https://images.unsplash.com/photo-1594035910387-fea47794261f?w=800",
+    category: "Amadeirados",
+    description: "Uma assinatura marcante para noites inesquecíveis. Agarwood (Oud) nobre, couro aveludado e toques de cacau amargo.",
+    volume: "100 ml",
+    concentration: "Parfum Extrait",
+    gender: "Masculino",
+    top_notes: "Pimenta Rosa, Framboesa Negra, Rum",
+    heart_notes: "Agarwood (Oud), Íris de Florença, Cacau",
+    base_notes: "Couro Nobre, Patchouli, Madeira de Guaiaco",
+    stock: 6,
+    is_featured: 1,
+    is_active: 1,
+    created_at: now - 10000
+  },
+  {
+    id: "6",
+    name: "Sol de Verão",
+    price: "R$ 310,00",
+    numeric_price: 310,
+    img: "https://images.unsplash.com/photo-1615397349754-cfa2066a298e?w=800",
+    category: "Aquáticos",
+    description: "A brisa ensolarada do litoral mediterrâneo combinada com água de coco fresca e jasmim estival.",
+    volume: "100 ml",
+    concentration: "Eau de Parfum",
+    gender: "Feminino",
+    top_notes: "Água de Coco, Sal Marinho, Bergamota",
+    heart_notes: "Jasmim Sol, Ylang-Ylang, Flor de Tiaré",
+    base_notes: "Madeira de Deriva, Baunilha Solar, Almíscar",
+    stock: 20,
+    is_featured: 0,
+    is_active: 1,
+    created_at: now
+  }
+];
+
 export class App extends DurableObject {
   private app = new Hono();
 
@@ -59,18 +233,6 @@ export class App extends DurableObject {
       .one().count as number;
 
     if (settingsCount === 0) {
-      const defaultSettings: Record<string, string> = {
-        store_name: "Essence Perfumaria",
-        store_whatsapp: "5531996831731",
-        hero_title: "A essência da sua personalidade",
-        hero_subtitle: "Descubra fragrâncias exclusivas e coleções de alta perfumaria que capturam momentos inesquecíveis.",
-        store_hero: "https://images.unsplash.com/photo-1594035910387-fea47794261f?w=1600",
-        announcement_bar: "✨ Frete Grátis para todo o Brasil em compras acima de R$ 350,00 | Até 6x sem juros",
-        store_email: "contato@essenceperfumaria.com.br",
-        instagram_url: "https://instagram.com/essenceperfumaria",
-        admin_pin: "1234"
-      };
-
       for (const [key, value] of Object.entries(defaultSettings)) {
         this.ctx.storage.sql.exec(
           `INSERT INTO settings (key, value) VALUES (?, ?)`,
@@ -85,14 +247,6 @@ export class App extends DurableObject {
       .one().count as number;
 
     if (categoryCount === 0) {
-      const defaultCategories = [
-        { id: "cat-1", name: "Amadeirados", description: "Notas quentes de cedro, sândalo e vetiver." },
-        { id: "cat-2", name: "Florais", description: "Buquês refinados de rosas, jasmins e orquídeas." },
-        { id: "cat-3", name: "Orientais", description: "Especiarias marcantes, âmbar radiante e mirra." },
-        { id: "cat-4", name: "Cítricos", description: "Refrescância de tangerinas, bergamotas e néroli." },
-        { id: "cat-5", name: "Aquáticos", description: "Brisas marinhas leves e notas refrescantes." }
-      ];
-
       for (const cat of defaultCategories) {
         this.ctx.storage.sql.exec(
           `INSERT INTO categories (id, name, description) VALUES (?, ?, ?)`,
@@ -108,124 +262,6 @@ export class App extends DurableObject {
       .one().count as number;
 
     if (productCount === 0) {
-      const now = Date.now();
-      const defaultProducts = [
-        {
-          id: "1",
-          name: "Blue Velvet",
-          price: "R$ 380,00",
-          numeric_price: 380,
-          img: "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=800",
-          category: "Amadeirados",
-          description: "Uma fragrância sedutora e misteriosa com notas profundas de cedro azul, noz-moscada aromática e bergamota italiana refinada.",
-          volume: "100 ml",
-          concentration: "Eau de Parfum",
-          gender: "Unissex",
-          top_notes: "Bergamota Italiana, Pimenta Preta, Cardamomo",
-          heart_notes: "Noz-moscada, Lavanda Francesa, Flor de Íris",
-          base_notes: "Cedro Azul, Âmbar Cinzento, Vetiver de Madagascar",
-          stock: 12,
-          is_featured: 1,
-          is_active: 1,
-          created_at: now - 50000
-        },
-        {
-          id: "2",
-          name: "Rose d'Or",
-          price: "R$ 420,00",
-          numeric_price: 420,
-          img: "https://images.unsplash.com/photo-1585120040315-2241b774ad0f?w=800",
-          category: "Florais",
-          description: "Elegância pura em forma líquida. Rosa Damascena colhida à alvorada harmonizada com toques sutis de baunilha de Madagascar.",
-          volume: "100 ml",
-          concentration: "Parfum Extrait",
-          gender: "Feminino",
-          top_notes: "Lichia Suculenta, Peônia, Pimenta Rosa",
-          heart_notes: "Rosa Damascena Absoluta, Jasmim Sambac",
-          base_notes: "Baunilha de Madagascar, Fava Tonka, Almíscar Branco",
-          stock: 8,
-          is_featured: 1,
-          is_active: 1,
-          created_at: now - 40000
-        },
-        {
-          id: "3",
-          name: "Amber Royale",
-          price: "R$ 490,00",
-          numeric_price: 490,
-          img: "https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=800",
-          category: "Orientais",
-          description: "Riqueza e calor envolventes. Âmbar dourado enriquecido com resina de mirra, especiarias orientais e sândalo cremoso.",
-          volume: "100 ml",
-          concentration: "Eau de Parfum",
-          gender: "Unissex",
-          top_notes: "Cardamomo Verde, Açafrão Persa, Canela",
-          heart_notes: "Mirra, Incenso de Omã, Bálsamo do Peru",
-          base_notes: "Âmbar Dourado, Sândalo Cauteloso, Couro Macio",
-          stock: 5,
-          is_featured: 1,
-          is_active: 1,
-          created_at: now - 30000
-        },
-        {
-          id: "4",
-          name: "Citrus Supreme",
-          price: "R$ 290,00",
-          numeric_price: 290,
-          img: "https://images.unsplash.com/photo-1547887537-6158d64c35b3?w=800",
-          category: "Cítricos",
-          description: "Explosão vibrante e revigorante de tangerina siciliana, néroli fresco e notas herbais de vetiver radiante.",
-          volume: "100 ml",
-          concentration: "Eau de Toilette",
-          gender: "Unissex",
-          top_notes: "Tangerina Siciliana, Limão Taiti, Toranja",
-          heart_notes: "Néroli, Flor de Laranjeira, Petitgrain",
-          base_notes: "Vetiver do Haiti, Almíscar Cristalino",
-          stock: 15,
-          is_featured: 0,
-          is_active: 1,
-          created_at: now - 20000
-        },
-        {
-          id: "5",
-          name: "Nuit Noire",
-          price: "R$ 510,00",
-          numeric_price: 510,
-          img: "https://images.unsplash.com/photo-1594035910387-fea47794261f?w=800",
-          category: "Amadeirados",
-          description: "Uma assinatura marcante para noites inesquecíveis. Agarwood (Oud) nobre, couro aveludado e toques de cacau amargo.",
-          volume: "100 ml",
-          concentration: "Parfum Extrait",
-          gender: "Masculino",
-          top_notes: "Pimenta Rosa, Framboesa Negra, Rum",
-          heart_notes: "Agarwood (Oud), Íris de Florença, Cacau",
-          base_notes: "Couro Nobre, Patchouli, Madeira de Guaiaco",
-          stock: 6,
-          is_featured: 1,
-          is_active: 1,
-          created_at: now - 10000
-        },
-        {
-          id: "6",
-          name: "Sol de Verão",
-          price: "R$ 310,00",
-          numeric_price: 310,
-          img: "https://images.unsplash.com/photo-1615397349754-cfa2066a298e?w=800",
-          category: "Aquáticos",
-          description: "A brisa ensolarada do litoral mediterrâneo combinada com água de coco fresca e jasmim estival.",
-          volume: "100 ml",
-          concentration: "Eau de Parfum",
-          gender: "Feminino",
-          top_notes: "Água de Coco, Sal Marinho, Bergamota",
-          heart_notes: "Jasmim Sol, Ylang-Ylang, Flor de Tiaré",
-          base_notes: "Madeira de Deriva, Baunilha Solar, Almíscar",
-          stock: 20,
-          is_featured: 0,
-          is_active: 1,
-          created_at: now
-        }
-      ];
-
       for (const p of defaultProducts) {
         this.ctx.storage.sql.exec(
           `INSERT INTO products (
@@ -298,7 +334,7 @@ export class App extends DurableObject {
     });
 
     this.app.post("/api/products", async (c) => {
-      const p = await c.req.json();
+      const p = await c.req.json<Partial<Product>>();
       const id = p.id || `prod-${Date.now()}`;
       const now = Date.now();
 
@@ -324,7 +360,7 @@ export class App extends DurableObject {
 
     this.app.put("/api/products/:id", async (c) => {
       const id = c.req.param("id");
-      const p = await c.req.json();
+      const p = await c.req.json<Partial<Product>>();
 
       const numericPrice = typeof p.numeric_price === 'number' ? p.numeric_price : parseFloat(String(p.price).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
       const formattedPrice = p.price && String(p.price).includes('R$') ? String(p.price) : `R$ ${numericPrice.toFixed(2).replace('.', ',')}`;
@@ -375,7 +411,7 @@ export class App extends DurableObject {
     });
 
     this.app.post("/api/leads", async (c) => {
-      const body = await c.req.json();
+      const body = await c.req.json<Partial<Lead>>();
       const id = `lead-${Date.now()}`;
       this.ctx.storage.sql.exec(
         `INSERT INTO leads (id, product_id, product_name, customer_name, customer_phone, notes, created_at)
@@ -415,3 +451,176 @@ export class App extends DurableObject {
     return this.app.fetch(request);
   }
 }
+
+// Fallback Standalone Hono Worker routing (para instâncias em memória)
+const workerApp = new Hono();
+
+let storeSettings = { ...defaultSettings };
+let storeCategories = [...defaultCategories];
+let storeProducts = [...defaultProducts];
+let storeLeads: Lead[] = [];
+
+workerApp.get("/api/settings", (c) => c.json(storeSettings));
+workerApp.post("/api/settings", async (c) => {
+  const body = await c.req.json();
+  storeSettings = { ...storeSettings, ...body };
+  return c.json({ ok: true, message: "Configurações salvas!" });
+});
+
+workerApp.get("/api/products", (c) => {
+  const category = c.req.query("category");
+  const search = c.req.query("search");
+  const featured = c.req.query("featured");
+
+  let list = storeProducts.filter(p => p.is_active === 1);
+
+  if (category && category !== "Todos") {
+    list = list.filter(p => p.category === category);
+  }
+
+  if (search) {
+    const term = search.toLowerCase();
+    list = list.filter(p =>
+      p.name.toLowerCase().includes(term) ||
+      p.description.toLowerCase().includes(term) ||
+      p.category.toLowerCase().includes(term) ||
+      p.top_notes?.toLowerCase().includes(term)
+    );
+  }
+
+  if (featured === "true") {
+    list = list.filter(p => p.is_featured === 1);
+  }
+
+  return c.json(list);
+});
+
+workerApp.get("/api/products/:id", (c) => {
+  const id = c.req.param("id");
+  const prod = storeProducts.find(p => p.id === id);
+  if (!prod) return c.json({ error: "Produto não encontrado" }, 404);
+  return c.json(prod);
+});
+
+workerApp.post("/api/products", async (c) => {
+  const p = await c.req.json<Partial<Product>>();
+  const id = p.id || `prod-${Date.now()}`;
+  const numericPrice = typeof p.numeric_price === 'number' ? p.numeric_price : parseFloat(String(p.price).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+  const formattedPrice = p.price && String(p.price).includes('R$') ? String(p.price) : `R$ ${numericPrice.toFixed(2).replace('.', ',')}`;
+
+  const newProd: Product = {
+    id,
+    name: p.name || "Novo Perfume",
+    price: formattedPrice,
+    numeric_price: numericPrice,
+    img: p.img || "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=800",
+    category: p.category || "Amadeirados",
+    description: p.description || "",
+    volume: p.volume || "100 ml",
+    concentration: p.concentration || "Eau de Parfum",
+    gender: p.gender || "Unissex",
+    top_notes: p.top_notes || "",
+    heart_notes: p.heart_notes || "",
+    base_notes: p.base_notes || "",
+    stock: p.stock !== undefined ? p.stock : 10,
+    is_featured: p.is_featured ? 1 : 0,
+    is_active: 1,
+    created_at: Date.now()
+  };
+
+  storeProducts.unshift(newProd);
+  return c.json({ ok: true, id, message: "Produto cadastrado com sucesso!" });
+});
+
+workerApp.put("/api/products/:id", async (c) => {
+  const id = c.req.param("id");
+  const p = await c.req.json<Partial<Product>>();
+  const index = storeProducts.findIndex(item => item.id === id);
+
+  if (index !== -1) {
+    const numericPrice = typeof p.numeric_price === 'number' ? p.numeric_price : parseFloat(String(p.price).replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+    const formattedPrice = p.price && String(p.price).includes('R$') ? String(p.price) : `R$ ${numericPrice.toFixed(2).replace('.', ',')}`;
+
+    storeProducts[index] = {
+      ...storeProducts[index],
+      ...p,
+      price: formattedPrice,
+      numeric_price: numericPrice,
+      is_featured: p.is_featured ? 1 : 0
+    };
+  }
+
+  return c.json({ ok: true, message: "Produto atualizado com sucesso!" });
+});
+
+workerApp.delete("/api/products/:id", (c) => {
+  const id = c.req.param("id");
+  storeProducts = storeProducts.filter(p => p.id !== id);
+  return c.json({ ok: true, message: "Produto removido!" });
+});
+
+workerApp.get("/api/categories", (c) => c.json(storeCategories));
+
+workerApp.post("/api/categories", async (c) => {
+  const body = await c.req.json<{ name: string; description?: string }>();
+  const id = `cat-${Date.now()}`;
+  const newCat = { id, name: body.name, description: body.description || "" };
+  storeCategories.push(newCat);
+  return c.json({ ok: true, id, message: "Categoria criada!" });
+});
+
+workerApp.delete("/api/categories/:id", (c) => {
+  const id = c.req.param("id");
+  storeCategories = storeCategories.filter(cat => cat.id !== id);
+  return c.json({ ok: true, message: "Categoria removida!" });
+});
+
+workerApp.get("/api/leads", (c) => c.json(storeLeads));
+
+workerApp.post("/api/leads", async (c) => {
+  const body = await c.req.json<Partial<Lead>>();
+  const id = `lead-${Date.now()}`;
+  storeLeads.unshift({
+    id,
+    product_id: body.product_id || "",
+    product_name: body.product_name || "Consulta Geral",
+    customer_name: body.customer_name || "Visitante da Loja",
+    customer_phone: body.customer_phone || "",
+    notes: body.notes || "",
+    created_at: Date.now()
+  });
+  return c.json({ ok: true });
+});
+
+workerApp.get("/api/stats", (c) => {
+  return c.json({
+    totalProducts: storeProducts.filter(p => p.is_active === 1).length,
+    totalCategories: storeCategories.length,
+    totalLeads: storeLeads.length,
+    featuredCount: storeProducts.filter(p => p.is_featured === 1 && p.is_active === 1).length
+  });
+});
+
+workerApp.post("/api/reset-demo", (c) => {
+  storeSettings = { ...defaultSettings };
+  storeCategories = [...defaultCategories];
+  storeProducts = [...defaultProducts];
+  storeLeads = [];
+  return c.json({ ok: true, message: "Banco de dados restaurado ao padrão de demonstração!" });
+});
+
+export default {
+  async fetch(request: Request, env: Record<string, unknown>, ctx: ExecutionContext) {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/api/")) {
+      if (env.APP_DO && typeof env.APP_DO === "object") {
+        const doEnv = env.APP_DO as { idFromName: (name: string) => { get: (id: unknown) => { fetch: typeof fetch } } };
+        const id = doEnv.idFromName("global");
+        const stub = doEnv.get(id);
+        return stub.fetch(request);
+      }
+      return workerApp.fetch(request, env, ctx);
+    }
+    return new Response("Not found", { status: 404 });
+  }
+};
